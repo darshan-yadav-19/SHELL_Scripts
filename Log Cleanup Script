@@ -1,43 +1,32 @@
 #!/bin/bash
-#
-# log_cleanup.sh - Find and clean up old log files
-# Usage: ./log_cleanup.sh /path/to/logs [days] [--dry-run]
-#
-# Compresses logs older than N days (default 7), and deletes
-# compressed logs older than 30 days. Use --dry-run to preview
-# changes without making them.
+# Rotates and trims old logs from a given directory
+# .log files older than $DAYS get gzipped, .log.gz older than 30 days get removed
+# Run with --dry-run first on any new server before scheduling it
 
-set -euo pipefail
+set -eu
 
-LOG_DIR="${1:?Usage: $0 /path/to/logs [days] [--dry-run]}"
-DAYS="${2:-7}"
-DRY_RUN="${3:-}"
+DIR=${1:?usage: log_cleanup.sh /path/to/logs [days] [--dry-run]}
+DAYS=${2:-7}
+DRY=${3:-}
 
-if [ ! -d "$LOG_DIR" ]; then
-    echo "Error: Directory $LOG_DIR does not exist."
-    exit 1
-fi
+[ -d "$DIR" ] || { echo "$DIR not found"; exit 1; }
 
-echo "Scanning $LOG_DIR for logs older than $DAYS days..."
+echo "Checking $DIR (logs older than $DAYS days)"
 
-# Compress old uncompressed logs
-find "$LOG_DIR" -type f -name "*.log" -mtime +"$DAYS" | while read -r FILE; do
-    if [ "$DRY_RUN" == "--dry-run" ]; then
-        echo "[DRY-RUN] Would compress: $FILE"
+find "$DIR" -name "*.log" -mtime +"$DAYS" | while read -r f; do
+    if [ "$DRY" = "--dry-run" ]; then
+        echo "would gzip: $f"
     else
-        gzip "$FILE"
-        echo "Compressed: $FILE"
+        gzip "$f" && echo "gzipped: $f"
     fi
 done
 
-# Delete compressed logs older than 30 days
-find "$LOG_DIR" -type f -name "*.log.gz" -mtime +30 | while read -r FILE; do
-    if [ "$DRY_RUN" == "--dry-run" ]; then
-        echo "[DRY-RUN] Would delete: $FILE"
+find "$DIR" -name "*.log.gz" -mtime +30 | while read -r f; do
+    if [ "$DRY" = "--dry-run" ]; then
+        echo "would remove: $f"
     else
-        rm -f "$FILE"
-        echo "Deleted: $FILE"
+        rm -f "$f" && echo "removed: $f"
     fi
 done
 
-echo "Log cleanup completed."
+echo "done"
