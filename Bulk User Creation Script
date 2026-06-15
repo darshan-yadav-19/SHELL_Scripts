@@ -10,6 +10,7 @@
 # first login), adds to the specified group, and grants sudo
 # if requested.
 
+
 set -euo pipefail
 
 CSV_FILE="${1:?Usage: $0 users.csv}"
