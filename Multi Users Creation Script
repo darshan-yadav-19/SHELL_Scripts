@@ -1,0 +1,34 @@
+#!/bin/bash
+# Bulk user creation from CSV - used during onboarding batches
+# csv format: username,group,sudo(yes/no), no header row
+# must run as root
+
+set -eu
+
+CSV=${1:?usage: create_users.sh users.csv}
+[ -f "$CSV" ] || { echo "$CSV not found"; exit 1; }
+[ "$EUID" -eq 0 ] || { echo "run as root"; exit 1; }
+
+while IFS=',' read -r USER GROUP SUDO; do
+    [ -z "$USER" ] && continue
+
+    if id "$USER" &>/dev/null; then
+        echo "$USER already exists, skipping"
+        continue
+    fi
+
+    getent group "$GROUP" &>/dev/null || groupadd "$GROUP"
+
+    useradd -m -g "$GROUP" -s /bin/bash "$USER"
+
+    # temp password, force reset on first login
+    PASS=$(openssl rand -base64 12)
+    echo "$USER:$PASS" | chpasswd
+    chage -d 0 "$USER"
+
+    if [ "$SUDO" = "yes" ]; then
+        usermod -aG sudo "$USER"
+    fi
+
+    echo "created $USER (group=$GROUP sudo=$SUDO) temp_pass=$PASS"
+done < "$CSV"
