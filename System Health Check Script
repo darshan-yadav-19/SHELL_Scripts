@@ -1,35 +1,28 @@
 #!/bin/bash
-#
-# health_check.sh - Basic system health report
-# Usage: ./health_check.sh
-#
-# Reports CPU load, memory usage, disk usage, and top processes.
-# Can be scheduled via cron for periodic monitoring.
+# Quick system health snapshot - run manually or via cron
+# Last updated: covers cpu/mem/disk + top consumers
 
-set -euo pipefail
+set -eu
 
-echo "===== System Health Report: $(hostname) ====="
-echo "Generated on: $(date)"
-echo
+HOST=$(hostname)
+echo "Health check - $HOST - $(date '+%Y-%m-%d %H:%M:%S')"
+echo "------------------------------------------------"
 
-echo "--- CPU Load Average ---"
-uptime
-echo
+echo "Load average:"
+uptime | awk -F'load average:' '{print $2}'
 
-echo "--- Memory Usage ---"
-free -h
-echo
+echo ""
+echo "Memory:"
+free -h | grep -v Swap
 
-echo "--- Disk Usage ---"
-df -h --output=source,size,used,avail,pcent,target | grep -E '^/dev/'
-echo
+echo ""
+echo "Disk usage (mounted filesystems):"
+df -h | grep -E '^/dev/'
 
-echo "--- Top 5 Processes by CPU ---"
-ps -eo pid,comm,%cpu,%mem --sort=-%cpu | head -n 6
-echo
+echo ""
+echo "Top 5 CPU consumers:"
+ps -eo pid,comm,%cpu,%mem --sort=-%cpu | head -6
 
-echo "--- Top 5 Processes by Memory ---"
-ps -eo pid,comm,%cpu,%mem --sort=-%mem | head -n 6
-echo
-
-echo "===== End of Report ====="
+echo ""
+echo "Top 5 memory consumers:"
+ps -eo pid,comm,%cpu,%mem --sort=-%mem | head -6
