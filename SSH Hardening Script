@@ -1,57 +1,39 @@
 #!/bin/bash
-#
-# ssh_harden.sh - Apply basic SSH hardening to sshd_config
-# Usage: sudo ./ssh_harden.sh
-#
-# Backs up the existing sshd_config, then disables root login,
-# disables password authentication (key-based only), and changes
-# a few other defaults. Restarts sshd at the end.
-#
-# IMPORTANT: Ensure you have a working SSH key set up for your
-# user BEFORE running this, or you may lock yourself out.
+# Standard SSH hardening - disables root login + password auth
+# Make sure your key-based login works BEFORE running this on a remote box
+# Backs up sshd_config and reverts automatically if the new config fails the test
 
-set -euo pipefail
+set -eu
 
-SSHD_CONFIG="/etc/ssh/sshd_config"
-BACKUP="/etc/ssh/sshd_config.bak.$(date +%Y%m%d_%H%M%S)"
+CFG=/etc/ssh/sshd_config
+BAK="$CFG.bak.$(date +%Y%m%d%H%M%S)"
 
-if [ "$EUID" -ne 0 ]; then
-    echo "Error: This script must be run as root (or with sudo)."
-    exit 1
-fi
+[ "$EUID" -eq 0 ] || { echo "run as root"; exit 1; }
 
-echo "Backing up $SSHD_CONFIG to $BACKUP"
-cp "$SSHD_CONFIG" "$BACKUP"
+cp "$CFG" "$BAK"
+echo "backup saved at $BAK"
 
-# Helper function to set a config option (uncomments or appends as needed)
-set_option() {
-    local KEY="$1"
-    local VALUE="$2"
-    if grep -qE "^\s*#?\s*${KEY}\s+" "$SSHD_CONFIG"; then
-        sed -i "s/^\s*#\?\s*${KEY}\s\+.*/${KEY} ${VALUE}/" "$SSHD_CONFIG"
+set_opt() {
+    if grep -qE "^\s*#?\s*$1\s+" "$CFG"; then
+        sed -i "s/^\s*#\?\s*$1\s\+.*/$1 $2/" "$CFG"
     else
-        echo "${KEY} ${VALUE}" >> "$SSHD_CONFIG"
+        echo "$1 $2" >> "$CFG"
     fi
-    echo "Set: ${KEY} ${VALUE}"
 }
 
-echo "Applying hardening settings..."
-set_option "PermitRootLogin" "no"
-set_option "PasswordAuthentication" "no"
-set_option "PermitEmptyPasswords" "no"
-set_option "X11Forwarding" "no"
-set_option "MaxAuthTries" "3"
-set_option "ClientAliveInterval" "300"
-set_option "ClientAliveCountMax" "2"
+set_opt PermitRootLogin no
+set_opt PasswordAuthentication no
+set_opt PermitEmptyPasswords no
+set_opt X11Forwarding no
+set_opt MaxAuthTries 3
+set_opt ClientAliveInterval 300
+set_opt ClientAliveCountMax 2
 
-echo "Validating sshd configuration..."
 if sshd -t; then
-    echo "Configuration valid. Restarting sshd..."
     systemctl restart sshd
-    echo "SSH hardening applied successfully."
+    echo "hardening applied, sshd restarted"
 else
-    echo "Configuration error detected. Restoring backup..."
-    cp "$BACKUP" "$SSHD_CONFIG"
-    echo "Backup restored. No changes applied."
+    cp "$BAK" "$CFG"
+    echo "config test failed, reverted"
     exit 1
 fi
