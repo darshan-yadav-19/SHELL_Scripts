@@ -1,0 +1,57 @@
+#!/bin/bash
+#
+# ssh_harden.sh - Apply basic SSH hardening to sshd_config
+# Usage: sudo ./ssh_harden.sh
+#
+# Backs up the existing sshd_config, then disables root login,
+# disables password authentication (key-based only), and changes
+# a few other defaults. Restarts sshd at the end.
+#
+# IMPORTANT: Ensure you have a working SSH key set up for your
+# user BEFORE running this, or you may lock yourself out.
+
+set -euo pipefail
+
+SSHD_CONFIG="/etc/ssh/sshd_config"
+BACKUP="/etc/ssh/sshd_config.bak.$(date +%Y%m%d_%H%M%S)"
+
+if [ "$EUID" -ne 0 ]; then
+    echo "Error: This script must be run as root (or with sudo)."
+    exit 1
+fi
+
+echo "Backing up $SSHD_CONFIG to $BACKUP"
+cp "$SSHD_CONFIG" "$BACKUP"
+
+# Helper function to set a config option (uncomments or appends as needed)
+set_option() {
+    local KEY="$1"
+    local VALUE="$2"
+    if grep -qE "^\s*#?\s*${KEY}\s+" "$SSHD_CONFIG"; then
+        sed -i "s/^\s*#\?\s*${KEY}\s\+.*/${KEY} ${VALUE}/" "$SSHD_CONFIG"
+    else
+        echo "${KEY} ${VALUE}" >> "$SSHD_CONFIG"
+    fi
+    echo "Set: ${KEY} ${VALUE}"
+}
+
+echo "Applying hardening settings..."
+set_option "PermitRootLogin" "no"
+set_option "PasswordAuthentication" "no"
+set_option "PermitEmptyPasswords" "no"
+set_option "X11Forwarding" "no"
+set_option "MaxAuthTries" "3"
+set_option "ClientAliveInterval" "300"
+set_option "ClientAliveCountMax" "2"
+
+echo "Validating sshd configuration..."
+if sshd -t; then
+    echo "Configuration valid. Restarting sshd..."
+    systemctl restart sshd
+    echo "SSH hardening applied successfully."
+else
+    echo "Configuration error detected. Restoring backup..."
+    cp "$BACKUP" "$SSHD_CONFIG"
+    echo "Backup restored. No changes applied."
+    exit 1
+fi
