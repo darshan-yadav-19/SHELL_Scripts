@@ -1,0 +1,35 @@
+#!/bin/bash
+#
+# health_check.sh - Basic system health report
+# Usage: ./health_check.sh
+#
+# Reports CPU load, memory usage, disk usage, and top processes.
+# Can be scheduled via cron for periodic monitoring.
+
+set -euo pipefail
+
+echo "===== System Health Report: $(hostname) ====="
+echo "Generated on: $(date)"
+echo
+
+echo "--- CPU Load Average ---"
+uptime
+echo
+
+echo "--- Memory Usage ---"
+free -h
+echo
+
+echo "--- Disk Usage ---"
+df -h --output=source,size,used,avail,pcent,target | grep -E '^/dev/'
+echo
+
+echo "--- Top 5 Processes by CPU ---"
+ps -eo pid,comm,%cpu,%mem --sort=-%cpu | head -n 6
+echo
+
+echo "--- Top 5 Processes by Memory ---"
+ps -eo pid,comm,%cpu,%mem --sort=-%mem | head -n 6
+echo
+
+echo "===== End of Report ====="
