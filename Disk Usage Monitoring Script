@@ -1,0 +1,19 @@
+#!/bin/bash
+
+THRESHOLD=80
+
+echo "Disk Usage Check"
+echo "================"
+
+df -h | grep '^/dev/' | while read line
+do
+    usage=$(echo $line | awk '{print $5}' | tr -d '%')
+    mount=$(echo $line | awk '{print $6}')
+
+    if [ $usage -ge $THRESHOLD ]
+    then
+        echo "WARNING: $mount usage is ${usage}%"
+    else
+        echo "$mount usage is ${usage}%"
+    fi
+done
